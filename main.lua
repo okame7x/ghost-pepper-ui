@@ -358,7 +358,7 @@ function Library:CreateWindow(config)
 						select.Text = tostring(value or "Select")
 						count = value ~= nil and 1 or 0
 					end
-					local active = count > 0
+					local active = count > 0 and not optionColors
 					setButtonRestColor(select, active and Library.Theme.Enabled or Library.Theme.Surface)
 					local stroke = select:FindFirstChildOfClass("UIStroke")
 					if stroke then stroke.Enabled = not active end
@@ -367,11 +367,11 @@ function Library:CreateWindow(config)
 				local function refreshChoiceStyles()
 					for option, choice in pairs(choiceButtons) do
 						local isSelected = (multi and selected[option] == true) or ((not multi) and value == option)
-						local selectedColor = optionColors and optionColors[option]
-						setButtonRestColor(choice, isSelected and selectedColor or (isSelected and Library.Theme.Enabled or Library.Theme.Surface))
+						local rarityColor = optionColors and optionColors[option]
+						setButtonRestColor(choice, (isSelected and not optionColors) and Library.Theme.Enabled or Library.Theme.Surface)
 						local stroke = choice:FindFirstChildOfClass("UIStroke")
-						if stroke then stroke.Enabled = not isSelected end
-						choice.TextColor3 = Library.Theme.Text
+						if stroke then stroke.Enabled = optionColors ~= nil or not isSelected end
+						choice.TextColor3 = rarityColor or Library.Theme.Text
 					end
 				end
 				local function setValue(nextValue, fireCallback)
