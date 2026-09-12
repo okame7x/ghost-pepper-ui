@@ -354,19 +354,29 @@ function Library:CreateWindow(config)
 					for _, isSelected in pairs(selected) do if isSelected then count += 1 end end
 					select.Text = count > 0 and (tostring(count) .. " selected") or "Select"
 				end
+				local choiceButtons = {}
+				local function refreshChoiceStyles()
+					for option, choice in pairs(choiceButtons) do
+						local isSelected = (multi and selected[option] == true) or ((not multi) and value == option)
+						setButtonRestColor(choice, isSelected and Library.Theme.Enabled or Library.Theme.Surface)
+					end
+				end
 				local function setValue(nextValue, fireCallback)
 					if multi then
 						selected[nextValue] = not selected[nextValue]
 						refreshCaption()
+						refreshChoiceStyles()
 						if fireCallback and config.Callback then config.Callback(nextValue, selected[nextValue]) end
 						return
 					end
 					value = nextValue
 					refreshCaption()
+					refreshChoiceStyles()
 					if fireCallback and config.Callback then config.Callback(value) end
 				end
 				for _, option in ipairs(options) do
 					local choice = button(list, tostring(option)); choice.Size, choice.ZIndex = UDim2.new(1, -8, 0, 27), 5
+					choiceButtons[option] = choice
 					clicked(choice, function()
 						setValue(option, true)
 						if not multi then list.Visible = false; arrow.Text = "v"; holder.Size = UDim2.new(1, 0, 0, 42) end
@@ -386,8 +396,10 @@ function Library:CreateWindow(config)
 					table.clear(selected)
 					for option, isSelected in pairs(map) do selected[option] = isSelected == true end
 					refreshCaption()
+					refreshChoiceStyles()
 				end
 				refreshCaption()
+				refreshChoiceStyles()
 				return object
 			end
 			return section
