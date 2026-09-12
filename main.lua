@@ -97,8 +97,11 @@ end)
 
 function Library:CreateWindow(config)
 	config = config or {}
+	-- gethui() may point to a protected CoreGui-like container.  In Studio and
+	-- restricted executors parenting there raises "lacking capability Plugin".
+	-- PlayerGui is available to every LocalScript/executor context and survives
+	-- respawns because ResetOnSpawn is disabled below.
 	local guiParent = player:WaitForChild("PlayerGui")
-	pcall(function() if type(gethui) == "function" then guiParent = gethui() end end)
 	local guiName = config.Name or "GhostPepperUITest"
 	local old = guiParent:FindFirstChild(guiName)
 	if old then old:Destroy() end
