@@ -255,8 +255,9 @@ function Library:CreateWindow(config)
 				return rowFrame, rowLabel
 			end
 
-			function section:AddToggle(config)
-				config = config or {}; local value = config.Default == true
+			function section:AddToggle(idOrConfig, suppliedConfig)
+				local config = type(idOrConfig) == "table" and idOrConfig or suppliedConfig or {}
+				local value = config.Default == true
 				local frame = row(config.Text or "Toggle")
 				local toggle = button(frame, value and (config.OnText or "ON") or (config.OffText or "OFF"))
 				toggle.Size, toggle.Position = UDim2.fromOffset(60, 28), UDim2.new(1, -70, 0.5, -14)
@@ -268,6 +269,9 @@ function Library:CreateWindow(config)
 					if not silent and config.Callback then config.Callback(value) end
 				end
 				function object:Get() return value end
+				-- Legacy hub API calls this as toggle.SetStage(true), without ':'.
+				object.SetStage = function(nextValue) object:Set(nextValue) end
+				object.SetValue = object.SetStage
 				clicked(toggle, function() object:Set(not value) end)
 				object:Set(value, true)
 				return object
@@ -308,8 +312,27 @@ function Library:CreateWindow(config)
 				return control
 			end
 
-			function section:AddDropdown(config)
-				config = config or {}; local options, value = config.Options or {}, config.Default
+			function section:AddInput(idOrConfig, suppliedConfig)
+				local config = type(idOrConfig) == "table" and idOrConfig or suppliedConfig or {}
+				local frame = row(config.Text or "Input")
+				local input = new("TextBox", {
+					Text = tostring(config.Default or ""), PlaceholderText = config.Placeholder or "",
+					ClearTextOnFocus = false, TextSize = 12, Font = Enum.Font.GothamMedium,
+					TextColor3 = Library.Theme.Text, PlaceholderColor3 = Library.Theme.Muted,
+					TextXAlignment = Enum.TextXAlignment.Center, BackgroundColor3 = Library.Theme.Surface,
+					BorderSizePixel = 0, Size = UDim2.fromOffset(150, 28), Position = UDim2.new(1, -160, 0.5, -14),
+				}, frame)
+				corner(input, 6); outline(input)
+				input.FocusLost:Connect(function() if config.Callback then config.Callback(input.Text) end end)
+				return {
+					SetValue = function(value) input.Text = tostring(value or "") end,
+					GetValue = function() return input.Text end,
+				}
+			end
+
+			function section:AddDropdown(idOrConfig, suppliedConfig)
+				local config = type(idOrConfig) == "table" and idOrConfig or suppliedConfig or {}
+				local options, value = config.Options or config.Values or {}, config.Default
 				-- Holder participates in the section UIListLayout. Expanding it pushes
 				-- the following controls down instead of drawing options over them.
 				local holder = new("Frame", { Name = "DropdownHolder", Size = UDim2.new(1, 0, 0, 42), BackgroundTransparency = 1, BorderSizePixel = 0, ClipsDescendants = false }, body)
@@ -317,6 +340,7 @@ function Library:CreateWindow(config)
 				corner(frame, 8); outline(frame, Library.Theme.Outline)
 				local rowLabel = text(frame, config.Text or "Dropdown", 13, Library.Theme.Text, Enum.Font.GothamMedium)
 				rowLabel.Position, rowLabel.Size = UDim2.fromOffset(13, 0), UDim2.new(1, -145, 1, 0)
+				local multi, selected = config.Multi == true, {}
 				local select = button(frame, tostring(value or "Select"))
 				select.Size, select.Position = UDim2.fromOffset(118, 28), UDim2.new(1, -128, 0.5, -14)
 				select.TextXAlignment = Enum.TextXAlignment.Center
@@ -326,21 +350,47 @@ function Library:CreateWindow(config)
 				local list = new("Frame", { Visible = false, Position = UDim2.fromOffset(0, 48), Size = UDim2.new(1, 0, 0, #options * 31 + 6), BackgroundColor3 = Library.Theme.Background, BorderSizePixel = 0 }, holder)
 				corner(list, 8); outline(list)
 				new("UIListLayout", { Padding = UDim.new(0, 2), HorizontalAlignment = Enum.HorizontalAlignment.Center, VerticalAlignment = Enum.VerticalAlignment.Center }, list)
+				local function refreshCaption()
+					if not multi then select.Text = tostring(value or "Select"); return end
+					local count = 0
+					for _, isSelected in pairs(selected) do if isSelected then count += 1 end end
+					select.Text = count > 0 and (tostring(count) .. " selected") or "Select"
+				end
 				local function setValue(nextValue, fireCallback)
+					if multi then
+						selected[nextValue] = not selected[nextValue]
+						refreshCaption()
+						if fireCallback and config.Callback then config.Callback(nextValue, selected[nextValue]) end
+						return
+					end
 					value = nextValue
-					select.Text = tostring(value or "Select")
+					refreshCaption()
 					if fireCallback and config.Callback then config.Callback(value) end
 				end
 				for _, option in ipairs(options) do
 					local choice = button(list, tostring(option)); choice.Size, choice.ZIndex = UDim2.new(1, -8, 0, 27), 5
-					clicked(choice, function() setValue(option, true); list.Visible = false; arrow.Text = "v"; holder.Size = UDim2.new(1, 0, 0, 42) end)
+					clicked(choice, function()
+						setValue(option, true)
+						if not multi then list.Visible = false; arrow.Text = "v"; holder.Size = UDim2.new(1, 0, 0, 42) end
+					end)
 				end
 				clicked(select, function()
 					list.Visible = not list.Visible
 					arrow.Text = list.Visible and "^" or "v"
 					holder.Size = UDim2.new(1, 0, 0, list.Visible and (#options * 31 + 52) or 42)
 				end)
-				return { Get = function() return value end, Set = function(_, nextValue) setValue(nextValue, false) end }
+				local object = {}
+				function object:Get() return multi and selected or value end
+				function object:Set(nextValue) setValue(nextValue, false) end
+				object.SetValue = function(nextValue) setValue(nextValue, false) end
+				object.GetNewList = function(_, map)
+					if not multi or type(map) ~= "table" then return end
+					table.clear(selected)
+					for option, isSelected in pairs(map) do selected[option] = isSelected == true end
+					refreshCaption()
+				end
+				refreshCaption()
+				return object
 			end
 			return section
 		end
@@ -394,6 +444,20 @@ function Library:CreateWindow(config)
 			window:SetVisible(not main.Visible)
 		end
 	end)
+	-- Compatibility surface used by referencia.lua.
+	Library.ToggleUI = function()
+		window:SetVisible(not main.Visible)
+	end
+	Library.Notify = function(first, second)
+		local config = type(second) == "table" and second or first
+		if type(config) == "table" then
+			local prefix = config.Title and (tostring(config.Title) .. ": ") or ""
+			window:Notify(prefix .. tostring(config.Content or ""), config.Duration)
+		else
+			window:Notify(tostring(config or ""))
+		end
+	end
+	Library.Notification = Library.Notify
 	return window
 end
 
