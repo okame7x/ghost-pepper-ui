@@ -433,34 +433,54 @@ function Library:CreateWindow(config)
 					if not ok or not clone then return end
 					local world = new("WorldModel", {}, viewport)
 					for _, descendant in ipairs(clone:GetDescendants()) do
-						if descendant:IsA("BasePart") then descendant.Anchored, descendant.CanCollide = true, false end
+						if descendant:IsA("BasePart") then
+							descendant.Anchored, descendant.CanCollide = true, false
+						elseif descendant:IsA("Script") or descendant:IsA("LocalScript") then
+							descendant:Destroy()
+						end
 					end
 					clone.Parent = world
 					local camera = new("Camera", {}, viewport)
 					viewport.CurrentCamera = camera
 					local boxOk, cf, size = pcall(function() return clone:GetBoundingBox() end)
 					if boxOk then
-						local distance = math.max(size.X, size.Y, size.Z) * 1.8 + 2
-						camera.CFrame = CFrame.new(cf.Position + Vector3.new(distance * 0.65, distance * 0.3, distance), cf.Position)
+						clone:PivotTo(CFrame.new(-cf.Position) * clone:GetPivot())
+						cf, size = clone:GetBoundingBox()
+						local radius = math.max(size.X, size.Y, size.Z, 0.05)
+						local scale = math.clamp(2.8 / radius, 0.5, 9)
+						if scale ~= 1 then
+							pcall(function() clone:ScaleTo(clone:GetScale() * scale) end)
+							cf, size = clone:GetBoundingBox()
+							radius = math.max(size.X, size.Y, size.Z, 0.05)
+						end
+						local face = clone:FindFirstChild("HumanoidRootPart") or clone:FindFirstChild("Head") or clone.PrimaryPart or clone:FindFirstChildWhichIsA("BasePart", true)
+						local front = Vector3.new(0, 0, -1)
+						if face then
+							local flat = Vector3.new(face.CFrame.LookVector.X, 0, face.CFrame.LookVector.Z)
+							if flat.Magnitude > 0.05 then front = flat.Unit end
+						end
+						camera.FieldOfView = 26
+						local center = cf.Position
+						camera.CFrame = CFrame.lookAt(center + front * (radius * 2.05) + Vector3.new(0, radius * 0.28, 0), center + Vector3.new(0, radius * 0.12, 0))
 					end
 				end
 				local function setState(item, row, status, enabled, silent)
 					selected[item.Id] = enabled == true
-					row.BackgroundColor3 = selected[item.Id] and Color3.fromRGB(19, 54, 36) or Color3.fromRGB(65, 22, 29)
+					row.BackgroundColor3 = selected[item.Id] and Library.Theme.Surface or Library.Theme.Background
 					status.Text = selected[item.Id] and (config.SelectedText or "Selected") or (config.BlockedText or "Blocked")
-					setButtonRestColor(status, selected[item.Id] and Library.Theme.Enabled or Library.Theme.AccentDark)
+					setButtonRestColor(status, selected[item.Id] and Library.Theme.SurfaceHover or Library.Theme.AccentDark)
 					if not silent and config.Callback then config.Callback(item.Id, selected[item.Id]) end
 				end
 				for index, item in ipairs(items) do
-					local row = new("Frame", { Name = tostring(item.Id), LayoutOrder = index, Size = UDim2.new(1, -5, 0, 58), BackgroundColor3 = Library.Theme.Surface, BorderSizePixel = 0 }, list)
+					local row = new("Frame", { Name = tostring(item.Id), LayoutOrder = index, Size = UDim2.new(1, -5, 0, 76), BackgroundColor3 = Library.Theme.Surface, BorderSizePixel = 0 }, list)
 					corner(row, 7); outline(row, Library.Theme.Outline)
-					local viewport = new("ViewportFrame", { BackgroundColor3 = Library.Theme.Background, BorderSizePixel = 0, Position = UDim2.fromOffset(6, 5), Size = UDim2.fromOffset(48, 48), Ambient = Color3.fromRGB(210, 210, 210), LightColor = Color3.fromRGB(255, 255, 255), LightDirection = Vector3.new(-1, -1, -1) }, row)
+					local viewport = new("ViewportFrame", { BackgroundColor3 = Library.Theme.Background, BorderSizePixel = 0, Position = UDim2.fromOffset(7, 6), Size = UDim2.fromOffset(64, 64), Ambient = Color3.fromRGB(235, 235, 235), LightColor = Color3.fromRGB(255, 255, 255), LightDirection = Vector3.new(-1, -1, -1) }, row)
 					corner(viewport, 6)
 					renderViewport(viewport, item.Model)
 					local name = text(row, tostring(item.Name or item.Id), 13, Library.Theme.Text, Enum.Font.GothamBold)
-					name.Position, name.Size = UDim2.fromOffset(64, 0), UDim2.new(1, -174, 1, 0)
+					name.Position, name.Size = UDim2.fromOffset(84, 0), UDim2.new(1, -194, 1, 0)
 					local status = button(row, "")
-					status.Size, status.Position = UDim2.fromOffset(94, 28), UDim2.new(1, -104, 0.5, -14)
+					status.Size, status.Position = UDim2.fromOffset(100, 30), UDim2.new(1, -110, 0.5, -15)
 					selected[item.Id] = not (config.Selected and config.Selected[item.Id] == false)
 					setState(item, row, status, selected[item.Id], true)
 					clicked(status, function() setState(item, row, status, not selected[item.Id], false) end)
