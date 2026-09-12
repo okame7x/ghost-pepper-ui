@@ -123,38 +123,9 @@ end)
 
 function Library:CreateWindow(config)
 	config = config or {}
-	-- Executors do not agree on which GUI parent their current thread can use.
-	-- Test a regular interactive GUI object before using the parent.
-	local candidates = {}
-	pcall(function()
-		if type(gethui) == "function" then
-			table.insert(candidates, gethui())
-		end
-	end)
-	pcall(function()
-		table.insert(candidates, game:GetService("CoreGui"))
-	end)
-	table.insert(candidates, player:WaitForChild("PlayerGui"))
-
-	local guiParent
-	for _, candidate in ipairs(candidates) do
-		local accepted, probeGui = pcall(function()
-			local probe = Instance.new("ScreenGui")
-			probe.Name = "GhostPepperParentProbe"
-			probe.Parent = candidate
-			local probeLabel = Instance.new("TextLabel")
-			probeLabel.Parent = probe
-			return probe
-		end)
-		if accepted and probeGui then
-			guiParent = candidate
-			probeGui:Destroy()
-			break
-		elseif probeGui then
-			pcall(function() probeGui:Destroy() end)
-		end
-	end
-	assert(guiParent, "Ghost Pepper UI: no GUI parent permits interactive instances in this executor")
+	-- Volt documents gethui() as its supported hidden GUI container.
+	assert(type(gethui) == "function", "Ghost Pepper UI requires Volt gethui()")
+	local guiParent = gethui()
 	local guiName = config.Name or "GhostPepperUITest"
 	local old = guiParent:FindFirstChild(guiName)
 	if old then old:Destroy() end
@@ -200,7 +171,9 @@ function Library:CreateWindow(config)
 	corner(sidebar, 10)
 	local tabsTitle = text(sidebar, "TABS", 11, self.Theme.Muted, Enum.Font.GothamBold)
 	tabsTitle.Position, tabsTitle.Size = UDim2.fromOffset(14, 10), UDim2.new(1, -28, 0, 18)
-	local tabList = new("ScrollingFrame", { Position = UDim2.fromOffset(8, 35), Size = UDim2.new(1, -16, 1, -43), BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 3, ScrollBarImageColor3 = self.Theme.Accent, AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new() }, sidebar)
+	-- Fixed Frame avoids the restricted ScrollingFrame child path used by some
+	-- executors. Seven tabs fit in this sidebar without needing a scroll bar.
+	local tabList = new("Frame", { Position = UDim2.fromOffset(8, 35), Size = UDim2.new(1, -16, 1, -43), BackgroundTransparency = 1, BorderSizePixel = 0 }, sidebar)
 	local tabLayout = new("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, tabList)
 
 	local pageHolder = new("Frame", { Name = "Pages", Position = UDim2.fromOffset(184, 68), Size = UDim2.new(1, -194, 1, -78), BackgroundTransparency = 1 }, main)
@@ -255,7 +228,7 @@ function Library:CreateWindow(config)
 		tabButton.Size, tabButton.LayoutOrder = UDim2.new(1, 0, 0, 38), tabOrder
 		tabOrder += 1
 		tab.Button = tabButton
-		local page = new("ScrollingFrame", { Name = name .. "Page", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 4, ScrollBarImageColor3 = Library.Theme.Accent, AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new(), Visible = false }, pageHolder)
+		local page = new("Frame", { Name = name .. "Page", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, BorderSizePixel = 0, Visible = false }, pageHolder)
 		new("UIListLayout", { Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder }, page)
 		tab.Page = page
 		self.Tabs[name] = tab
