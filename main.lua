@@ -468,12 +468,14 @@ function Library:CreateWindow(config)
 					selected[item.Id] = enabled == true
 					row.BackgroundColor3 = selected[item.Id] and Library.Theme.Surface or Library.Theme.Background
 					status.Text = selected[item.Id] and (config.SelectedText or "Selected") or (config.BlockedText or "Blocked")
-					setButtonRestColor(status, selected[item.Id] and Library.Theme.SurfaceHover or Library.Theme.AccentDark)
+					setButtonRestColor(status, selected[item.Id] and Library.Theme.Enabled or Library.Theme.AccentDark)
 					if not silent and config.Callback then config.Callback(item.Id, selected[item.Id]) end
 				end
 				for index, item in ipairs(items) do
 					local row = new("Frame", { Name = tostring(item.Id), LayoutOrder = index, Size = UDim2.new(1, -5, 0, 76), BackgroundColor3 = Library.Theme.Surface, BorderSizePixel = 0 }, list)
 					corner(row, 7); outline(row, Library.Theme.Outline)
+					local rarityStrip = new("Frame", { BackgroundColor3 = item.RarityColor or Library.Theme.Accent, BorderSizePixel = 0, Position = UDim2.fromOffset(4, 6), Size = UDim2.fromOffset(3, 64) }, row)
+					corner(rarityStrip, 2)
 					local viewport = new("ViewportFrame", { BackgroundColor3 = Library.Theme.Background, BorderSizePixel = 0, Position = UDim2.fromOffset(7, 6), Size = UDim2.fromOffset(64, 64), Ambient = Color3.fromRGB(235, 235, 235), LightColor = Color3.fromRGB(255, 255, 255), LightDirection = Vector3.new(-1, -1, -1) }, row)
 					corner(viewport, 6)
 					renderViewport(viewport, item.Model)
