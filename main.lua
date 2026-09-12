@@ -67,9 +67,13 @@ local function setButtonRestColor(control, color)
 end
 
 local function button(parent, value)
-	local control = new("TextButton", {
-		AutoButtonColor = false, BorderSizePixel = 0, BackgroundColor3 = Library.Theme.Surface,
+	-- Some restricted executors deny TextButton parenting with a Plugin
+	-- capability error. TextLabel is a GuiObject too, supports hover/input,
+	-- and has no such restriction.
+	local control = new("TextLabel", {
+		Active = true, BorderSizePixel = 0, BackgroundColor3 = Library.Theme.Surface,
 		Text = value or "", TextColor3 = Library.Theme.Text, TextSize = 13, Font = Enum.Font.GothamMedium,
+		TextXAlignment = Enum.TextXAlignment.Center,
 	}, parent)
 	corner(control, 7)
 	outline(control)
@@ -81,6 +85,14 @@ local function button(parent, value)
 	end)
 	control.MouseLeave:Connect(function() tween(control, { BackgroundColor3 = buttonRestColor[control] or Library.Theme.Surface }) end)
 	return control
+end
+
+local function clicked(control, callback)
+	control.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			callback()
+		end
+	end)
 end
 
 -- One shared slider dispatcher prevents a new InputChanged connection per slider.
@@ -98,8 +110,7 @@ end)
 function Library:CreateWindow(config)
 	config = config or {}
 	-- Executors do not agree on which GUI parent their current thread can use.
-	-- Test an actual TextButton, because a ScreenGui/Frame can be accepted even
-	-- when button instances are denied with a Plugin capability error.
+	-- Test a regular interactive GUI object before using the parent.
 	local candidates = {}
 	pcall(function()
 		if type(gethui) == "function" then
@@ -117,8 +128,8 @@ function Library:CreateWindow(config)
 			local probe = Instance.new("ScreenGui")
 			probe.Name = "GhostPepperParentProbe"
 			probe.Parent = candidate
-			local probeButton = Instance.new("TextButton")
-			probeButton.Parent = probe
+			local probeLabel = Instance.new("TextLabel")
+			probeLabel.Parent = probe
 			return probe
 		end)
 		if accepted and probeGui then
@@ -129,7 +140,7 @@ function Library:CreateWindow(config)
 			pcall(function() probeGui:Destroy() end)
 		end
 	end
-	assert(guiParent, "Ghost Pepper UI: no GUI parent permits TextButton instances in this executor")
+	assert(guiParent, "Ghost Pepper UI: no GUI parent permits interactive instances in this executor")
 	local guiName = config.Name or "GhostPepperUITest"
 	local old = guiParent:FindFirstChild(guiName)
 	if old then old:Destroy() end
@@ -234,7 +245,7 @@ function Library:CreateWindow(config)
 		new("UIListLayout", { Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder }, page)
 		tab.Page = page
 		self.Tabs[name] = tab
-		tabButton.MouseButton1Click:Connect(function() self:SelectTab(tab) end)
+		clicked(tabButton, function() self:SelectTab(tab) end)
 
 		function tab:AddSection(sectionName)
 			local section = { Name = sectionName }
@@ -270,7 +281,7 @@ function Library:CreateWindow(config)
 					if not silent and config.Callback then config.Callback(value) end
 				end
 				function object:Get() return value end
-				toggle.MouseButton1Click:Connect(function() object:Set(not value) end)
+				clicked(toggle, function() object:Set(not value) end)
 				object:Set(value, true)
 				return object
 			end
@@ -282,7 +293,7 @@ function Library:CreateWindow(config)
 				rowLabel.Size = UDim2.new(1, -90, 0, 28)
 				local box = new("TextBox", { Text = "", ClearTextOnFocus = false, TextSize = 12, Font = Enum.Font.GothamMedium, TextColor3 = Library.Theme.Text, TextXAlignment = Enum.TextXAlignment.Center, BackgroundColor3 = Library.Theme.Surface, BorderSizePixel = 0, Size = UDim2.fromOffset(62, 24), Position = UDim2.new(1, -72, 0, 8) }, frame)
 				corner(box, 6); outline(box)
-				local track = new("TextButton", { Text = "", AutoButtonColor = false, BackgroundColor3 = Library.Theme.Background, BorderSizePixel = 0, Position = UDim2.fromOffset(13, 42), Size = UDim2.new(1, -26, 0, 6) }, frame)
+				local track = new("Frame", { Active = true, BackgroundColor3 = Library.Theme.Background, BorderSizePixel = 0, Position = UDim2.fromOffset(13, 42), Size = UDim2.new(1, -26, 0, 6) }, frame)
 				corner(track, 4)
 				local fill = new("Frame", { BackgroundColor3 = Library.Theme.Accent, BorderSizePixel = 0, Size = UDim2.new(0, 0, 1, 0) }, track); corner(fill, 4)
 				local knob = new("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0, 0, 0.5, 0), Size = UDim2.fromOffset(12, 12), BackgroundColor3 = Library.Theme.Text, BorderSizePixel = 0 }, track); corner(knob, 9); outline(knob)
@@ -306,7 +317,7 @@ function Library:CreateWindow(config)
 			function section:AddButton(config)
 				config = config or {}; local control = button(body, config.Text or "Button")
 				control.Size = UDim2.new(1, 0, 0, 38)
-				control.MouseButton1Click:Connect(function() if config.Callback then config.Callback() end end)
+				clicked(control, function() if config.Callback then config.Callback() end end)
 				return control
 			end
 
@@ -335,9 +346,9 @@ function Library:CreateWindow(config)
 				end
 				for _, option in ipairs(options) do
 					local choice = button(list, tostring(option)); choice.Size, choice.ZIndex = UDim2.new(1, -8, 0, 27), 5
-					choice.MouseButton1Click:Connect(function() setValue(option, true); list.Visible = false; arrow.Text = "v"; holder.Size = UDim2.new(1, 0, 0, 42) end)
+					clicked(choice, function() setValue(option, true); list.Visible = false; arrow.Text = "v"; holder.Size = UDim2.new(1, 0, 0, 42) end)
 				end
-				select.MouseButton1Click:Connect(function()
+				clicked(select, function()
 					list.Visible = not list.Visible
 					arrow.Text = list.Visible and "^" or "v"
 					holder.Size = UDim2.new(1, 0, 0, list.Visible and (#options * 31 + 52) or 42)
@@ -354,7 +365,7 @@ function Library:CreateWindow(config)
 	header.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging, startPointer, startPosition = true, input.Position, main.Position end end)
 	UserInputService.InputChanged:Connect(function(input) if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then local delta = input.Position - startPointer; main.Position = UDim2.new(startPosition.X.Scale, startPosition.X.Offset + delta.X, startPosition.Y.Scale, startPosition.Y.Offset + delta.Y) end end)
 	UserInputService.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = false end end)
-	minimize.MouseButton1Click:Connect(function()
+	clicked(minimize, function()
 		window.Collapsed = not window.Collapsed
 		sidebar.Visible, pageHolder.Visible = not window.Collapsed, not window.Collapsed
 		local offset = (height - 58) * 0.5
@@ -369,7 +380,7 @@ function Library:CreateWindow(config)
 			main.Size = UDim2.fromOffset(width, height)
 		end
 	end)
-	close.MouseButton1Click:Connect(function() window:SetVisible(false) end)
+	clicked(close, function() window:SetVisible(false) end)
 	local reopenDragging, reopenMoved, reopenStart, reopenPosition = false, false, nil, nil
 	reopen.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -386,7 +397,7 @@ function Library:CreateWindow(config)
 	UserInputService.InputEnded:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then reopenDragging = false end
 	end)
-	reopen.MouseButton1Click:Connect(function()
+	clicked(reopen, function()
 		if reopenMoved then return end
 		window:SetVisible(not main.Visible)
 	end)
