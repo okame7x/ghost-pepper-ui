@@ -46,9 +46,23 @@ local function outline(object, color, thickness)
 end
 
 local function new(className, properties, parent)
-	local object = Instance.new(className)
-	for key, value in pairs(properties or {}) do object[key] = value end
-	object.Parent = parent
+	local created, object = pcall(Instance.new, className)
+	if not created then
+		error(("Ghost Pepper UI: Instance.new(%s) was denied: %s"):format(className, tostring(object)), 2)
+	end
+	for key, value in pairs(properties or {}) do
+		local assigned, reason = pcall(function() object[key] = value end)
+		if not assigned then
+			object:Destroy()
+			error(("Ghost Pepper UI: %s.%s was denied: %s"):format(className, key, tostring(reason)), 2)
+		end
+	end
+	local parented, reason = pcall(function() object.Parent = parent end)
+	if not parented then
+		local parentName = parent and parent:GetFullName() or "nil"
+		object:Destroy()
+		error(("Ghost Pepper UI: parenting %s into %s was denied: %s"):format(className, parentName, tostring(reason)), 2)
+	end
 	return object
 end
 
