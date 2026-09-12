@@ -349,16 +349,27 @@ function Library:CreateWindow(config)
 				corner(list, 8); outline(list)
 				new("UIListLayout", { Padding = UDim.new(0, 2), HorizontalAlignment = Enum.HorizontalAlignment.Center, VerticalAlignment = Enum.VerticalAlignment.Center }, list)
 				local function refreshCaption()
-					if not multi then select.Text = tostring(value or "Select"); return end
 					local count = 0
-					for _, isSelected in pairs(selected) do if isSelected then count += 1 end end
-					select.Text = count > 0 and (tostring(count) .. " selected") or "Select"
+					if multi then
+						for _, isSelected in pairs(selected) do if isSelected then count += 1 end end
+						select.Text = count > 0 and (tostring(count) .. " selected") or "Select"
+					else
+						select.Text = tostring(value or "Select")
+						count = value ~= nil and 1 or 0
+					end
+					local active = count > 0
+					setButtonRestColor(select, active and Library.Theme.Enabled or Library.Theme.Surface)
+					local stroke = select:FindFirstChildOfClass("UIStroke")
+					if stroke then stroke.Color, stroke.Thickness = active and Color3.fromRGB(18, 105, 52) or Library.Theme.Outline, active and 2 or 1 end
 				end
 				local choiceButtons = {}
 				local function refreshChoiceStyles()
 					for option, choice in pairs(choiceButtons) do
 						local isSelected = (multi and selected[option] == true) or ((not multi) and value == option)
 						setButtonRestColor(choice, isSelected and Library.Theme.Enabled or Library.Theme.Surface)
+						local stroke = choice:FindFirstChildOfClass("UIStroke")
+						if stroke then stroke.Color, stroke.Thickness = isSelected and Color3.fromRGB(18, 105, 52) or Library.Theme.Outline, isSelected and 2 or 1 end
+						choice.TextColor3 = isSelected and Color3.fromRGB(8, 38, 19) or Library.Theme.Text
 					end
 				end
 				local function setValue(nextValue, fireCallback)
