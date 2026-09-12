@@ -360,7 +360,7 @@ function Library:CreateWindow(config)
 					local active = count > 0
 					setButtonRestColor(select, active and Library.Theme.Enabled or Library.Theme.Surface)
 					local stroke = select:FindFirstChildOfClass("UIStroke")
-					if stroke then stroke.Color, stroke.Thickness = active and Color3.fromRGB(18, 105, 52) or Library.Theme.Outline, active and 2 or 1 end
+					if stroke then stroke.Enabled = not active end
 				end
 				local choiceButtons = {}
 				local function refreshChoiceStyles()
@@ -368,8 +368,8 @@ function Library:CreateWindow(config)
 						local isSelected = (multi and selected[option] == true) or ((not multi) and value == option)
 						setButtonRestColor(choice, isSelected and Library.Theme.Enabled or Library.Theme.Surface)
 						local stroke = choice:FindFirstChildOfClass("UIStroke")
-						if stroke then stroke.Color, stroke.Thickness = isSelected and Color3.fromRGB(18, 105, 52) or Library.Theme.Outline, isSelected and 2 or 1 end
-						choice.TextColor3 = isSelected and Color3.fromRGB(8, 38, 19) or Library.Theme.Text
+						if stroke then stroke.Enabled = not isSelected end
+						choice.TextColor3 = Library.Theme.Text
 					end
 				end
 				local function setValue(nextValue, fireCallback)
