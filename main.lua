@@ -97,11 +97,39 @@ end)
 
 function Library:CreateWindow(config)
 	config = config or {}
-	-- gethui() may point to a protected CoreGui-like container.  In Studio and
-	-- restricted executors parenting there raises "lacking capability Plugin".
-	-- PlayerGui is available to every LocalScript/executor context and survives
-	-- respawns because ResetOnSpawn is disabled below.
-	local guiParent = player:WaitForChild("PlayerGui")
+	-- Executors do not agree on which GUI parent their current thread can use.
+	-- Test an actual TextButton, because a ScreenGui/Frame can be accepted even
+	-- when button instances are denied with a Plugin capability error.
+	local candidates = {}
+	pcall(function()
+		if type(gethui) == "function" then
+			table.insert(candidates, gethui())
+		end
+	end)
+	pcall(function()
+		table.insert(candidates, game:GetService("CoreGui"))
+	end)
+	table.insert(candidates, player:WaitForChild("PlayerGui"))
+
+	local guiParent
+	for _, candidate in ipairs(candidates) do
+		local accepted, probeGui = pcall(function()
+			local probe = Instance.new("ScreenGui")
+			probe.Name = "GhostPepperParentProbe"
+			probe.Parent = candidate
+			local probeButton = Instance.new("TextButton")
+			probeButton.Parent = probe
+			return probe
+		end)
+		if accepted and probeGui then
+			guiParent = candidate
+			probeGui:Destroy()
+			break
+		elseif probeGui then
+			pcall(function() probeGui:Destroy() end)
+		end
+	end
+	assert(guiParent, "Ghost Pepper UI: no GUI parent permits TextButton instances in this executor")
 	local guiName = config.Name or "GhostPepperUITest"
 	local old = guiParent:FindFirstChild(guiName)
 	if old then old:Destroy() end
