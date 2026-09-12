@@ -331,6 +331,7 @@ function Library:CreateWindow(config)
 			function section:AddDropdown(idOrConfig, suppliedConfig)
 				local config = type(idOrConfig) == "table" and idOrConfig or suppliedConfig or {}
 				local options, value = config.Options or config.Values or {}, config.Default
+				local optionColors = type(config.OptionColors) == "table" and config.OptionColors or nil
 				-- Holder participates in the section UIListLayout. Expanding it pushes
 				-- the following controls down instead of drawing options over them.
 				local holder = new("Frame", { Name = "DropdownHolder", Size = UDim2.new(1, 0, 0, 42), BackgroundTransparency = 1, BorderSizePixel = 0, ClipsDescendants = false }, body)
@@ -366,7 +367,8 @@ function Library:CreateWindow(config)
 				local function refreshChoiceStyles()
 					for option, choice in pairs(choiceButtons) do
 						local isSelected = (multi and selected[option] == true) or ((not multi) and value == option)
-						setButtonRestColor(choice, isSelected and Library.Theme.Enabled or Library.Theme.Surface)
+						local selectedColor = optionColors and optionColors[option]
+						setButtonRestColor(choice, isSelected and selectedColor or (isSelected and Library.Theme.Enabled or Library.Theme.Surface))
 						local stroke = choice:FindFirstChildOfClass("UIStroke")
 						if stroke then stroke.Enabled = not isSelected end
 						choice.TextColor3 = Library.Theme.Text
