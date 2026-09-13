@@ -111,9 +111,11 @@ end
 
 -- One shared slider dispatcher prevents a new InputChanged connection per slider.
 UserInputService.InputChanged:Connect(function(input)
-	local active = Library._activeSlider
-	if not active or (input.UserInputType ~= Enum.UserInputType.MouseMovement and input.UserInputType ~= Enum.UserInputType.Touch) then return end
-	active:SetFromX(input.Position.X)
+	pcall(function()
+		local active = Library._activeSlider
+		if not active or (input.UserInputType ~= Enum.UserInputType.MouseMovement and input.UserInputType ~= Enum.UserInputType.Touch) then return end
+		active:SetFromX(input.Position.X)
+	end)
 end)
 UserInputService.InputEnded:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -466,13 +468,13 @@ function Library:CreateWindow(config)
 				end
 				local function setState(item, row, status, enabled, silent)
 					selected[item.Id] = enabled == true
-					row.BackgroundColor3 = selected[item.Id] and Library.Theme.Surface or Library.Theme.Background
+					row.BackgroundColor3 = selected[item.Id] and Color3.fromRGB(25, 76, 49) or Library.Theme.Background
 					status.Text = selected[item.Id] and (config.SelectedText or "Selected") or (config.BlockedText or "Blocked")
 					setButtonRestColor(status, selected[item.Id] and Library.Theme.Enabled or Library.Theme.AccentDark)
 					if not silent and config.Callback then config.Callback(item.Id, selected[item.Id]) end
 				end
 				for index, item in ipairs(items) do
-					local row = new("Frame", { Name = tostring(item.Id), LayoutOrder = index, Size = UDim2.new(1, -5, 0, 76), BackgroundColor3 = Library.Theme.Surface, BorderSizePixel = 0 }, list)
+					local row = new("Frame", { Name = tostring(item.Id), Active = true, LayoutOrder = index, Size = UDim2.new(1, -5, 0, 76), BackgroundColor3 = Library.Theme.Surface, BorderSizePixel = 0 }, list)
 					corner(row, 7); outline(row, Library.Theme.Outline)
 					local rarityStrip = new("Frame", { BackgroundColor3 = item.RarityColor or Library.Theme.Accent, BorderSizePixel = 0, Position = UDim2.fromOffset(4, 6), Size = UDim2.fromOffset(3, 64) }, row)
 					corner(rarityStrip, 2)
@@ -485,7 +487,15 @@ function Library:CreateWindow(config)
 					status.Size, status.Position = UDim2.fromOffset(100, 30), UDim2.new(1, -110, 0.5, -15)
 					selected[item.Id] = not (config.Selected and config.Selected[item.Id] == false)
 					setState(item, row, status, selected[item.Id], true)
-					clicked(status, function() setState(item, row, status, not selected[item.Id], false) end)
+					local toggling = false
+					local function toggleState()
+						if toggling then return end
+						toggling = true
+						setState(item, row, status, not selected[item.Id], false)
+						task.defer(function() toggling = false end)
+					end
+					clicked(status, toggleState)
+					clicked(row, toggleState)
 					rows[#rows + 1] = { Item = item, Row = row }
 				end
 				search:GetPropertyChangedSignal("Text"):Connect(function()
@@ -504,7 +514,7 @@ function Library:CreateWindow(config)
 
 	local dragging, startPosition, startPointer = false, nil, nil
 	header.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging, startPointer, startPosition = true, input.Position, main.Position end end)
-	UserInputService.InputChanged:Connect(function(input) if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then local delta = input.Position - startPointer; main.Position = UDim2.new(startPosition.X.Scale, startPosition.X.Offset + delta.X, startPosition.Y.Scale, startPosition.Y.Offset + delta.Y) end end)
+	UserInputService.InputChanged:Connect(function(input) pcall(function() if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then local delta = input.Position - startPointer; main.Position = UDim2.new(startPosition.X.Scale, startPosition.X.Offset + delta.X, startPosition.Y.Scale, startPosition.Y.Offset + delta.Y) end end) end)
 	UserInputService.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = false end end)
 	clicked(minimize, function()
 		window.Collapsed = not window.Collapsed
@@ -530,10 +540,12 @@ function Library:CreateWindow(config)
 		end
 	end)
 	UserInputService.InputChanged:Connect(function(input)
-		if not reopenDragging or (input.UserInputType ~= Enum.UserInputType.MouseMovement and input.UserInputType ~= Enum.UserInputType.Touch) then return end
-		local delta = input.Position - reopenStart
-		if delta.Magnitude > 3 then reopenMoved = true end
-		reopen.Position = UDim2.new(reopenPosition.X.Scale, reopenPosition.X.Offset + delta.X, reopenPosition.Y.Scale, reopenPosition.Y.Offset + delta.Y)
+		pcall(function()
+			if not reopenDragging or (input.UserInputType ~= Enum.UserInputType.MouseMovement and input.UserInputType ~= Enum.UserInputType.Touch) then return end
+			local delta = input.Position - reopenStart
+			if delta.Magnitude > 3 then reopenMoved = true end
+			reopen.Position = UDim2.new(reopenPosition.X.Scale, reopenPosition.X.Offset + delta.X, reopenPosition.Y.Scale, reopenPosition.Y.Offset + delta.Y)
+		end)
 	end)
 	UserInputService.InputEnded:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then reopenDragging = false end
