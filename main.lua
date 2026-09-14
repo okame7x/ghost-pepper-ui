@@ -107,10 +107,15 @@ local function button(parent, value)
 	buttonRestColor[control] = Library.Theme.Surface
 	control.MouseEnter:Connect(function()
 		local base = buttonRestColor[control] or Library.Theme.Surface
-		local hover = base == Library.Theme.Enabled and Color3.fromRGB(53, 190, 105) or Library.Theme.SurfaceHover
-		tween(control, { BackgroundColor3 = hover })
+		if base == Library.Theme.Enabled then
+			control.BackgroundColor3 = Color3.fromRGB(53, 190, 105)
+		else
+			control.BackgroundColor3 = Library.Theme.SurfaceHover
+		end
 	end)
-	control.MouseLeave:Connect(function() tween(control, { BackgroundColor3 = buttonRestColor[control] or Library.Theme.Surface }) end)
+	control.MouseLeave:Connect(function()
+		control.BackgroundColor3 = buttonRestColor[control] or Library.Theme.Surface
+	end)
 	return control
 end
 
@@ -374,7 +379,7 @@ function Library:CreateWindow(config)
 				function object:Set(nextValue, silent)
 					value = nextValue == true
 					toggle.Text = value and (config.OnText or "ON") or (config.OffText or "OFF")
-					setButtonRestColor(toggle, value and Library.Theme.Enabled or Library.Theme.Surface)
+					setButtonRestColor(toggle, value and Library.Theme.Enabled or Library.Theme.AccentDark)
 					if not silent and config.Callback then config.Callback(value) end
 				end
 				function object:Get() return value end
