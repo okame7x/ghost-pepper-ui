@@ -27,7 +27,20 @@ local Library = {
 }
 
 local function tween(object, properties, duration)
-	TweenService:Create(object, TweenInfo.new(duration or 0.14, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), properties):Play()
+	local ok, tw = pcall(function()
+		return TweenService:Create(object, TweenInfo.new(duration or 0.14, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), properties)
+	end)
+	if ok and tw then
+		pcall(function()
+			tw:Play()
+		end)
+		return
+	end
+	for key, value in pairs(properties or {}) do
+		pcall(function()
+			object[key] = value
+		end)
+	end
 end
 
 local function corner(object, radius)
@@ -101,17 +114,53 @@ local function button(parent, value)
 	return control
 end
 
+local TAP_SLOP = 24
+local activeTap = nil
+local function pointerXY(input)
+	return Vector2.new(input.Position.X, input.Position.Y)
+end
+local function scrollAncestor(gui)
+	local node = gui
+	while node do
+		if node:IsA("ScrollingFrame") then
+			return node
+		end
+		node = node.Parent
+	end
+end
+local function pointerOver(gui, pos)
+	local abs, size = gui.AbsolutePosition, gui.AbsoluteSize
+	return pos.X >= abs.X and pos.Y >= abs.Y and pos.X <= abs.X + size.X and pos.Y <= abs.Y + size.Y
+end
 local function clicked(control, callback)
 	control.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			callback()
+		if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then
+			return
 		end
+		local scroll = scrollAncestor(control)
+		activeTap = {
+			Control = control,
+			Input = input,
+			Start = pointerXY(input),
+			Canvas = scroll and scroll.CanvasPosition or Vector2.zero,
+			Scroll = scroll,
+			Dragged = false,
+			Callback = callback,
+		}
 	end)
 end
 
 -- One shared slider dispatcher prevents a new InputChanged connection per slider.
 UserInputService.InputChanged:Connect(function(input)
 	pcall(function()
+		if activeTap and activeTap.Input == input then
+			local slop = activeTap.ListTap and 12 or TAP_SLOP
+			local moved = (pointerXY(input) - activeTap.Start).Magnitude > slop
+			local scrolled = activeTap.Scroll and (activeTap.Scroll.CanvasPosition - activeTap.Canvas).Magnitude > 2
+			if moved or scrolled then
+				activeTap.Dragged = true
+			end
+		end
 		local active = Library._activeSlider
 		if not active or (input.UserInputType ~= Enum.UserInputType.MouseMovement and input.UserInputType ~= Enum.UserInputType.Touch) then return end
 		active:SetFromX(input.Position.X)
@@ -121,6 +170,65 @@ UserInputService.InputEnded:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 		Library._activeSlider = nil
 	end
+	local tap = activeTap
+	if not tap or tap.Input ~= input then
+		return
+	end
+	activeTap = nil
+	if tap.Dragged then
+		return
+	end
+	local pos = pointerXY(input)
+	local slop = tap.ListTap and 12 or TAP_SLOP
+	if (pos - tap.Start).Magnitude > slop then
+		return
+	end
+	if tap.Scroll and (tap.Scroll.CanvasPosition - tap.Canvas).Magnitude > 2 then
+		return
+	end
+	if not tap.ListTap then
+		if not (tap.Control and tap.Control.Parent and pointerOver(tap.Control, pos)) then
+			return
+		end
+	end
+	tap.Callback(pos)
+end)
+
+local function clickedButton(control, callback)
+	local press
+	control.InputBegan:Connect(function(input)
+		if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then
+			return
+		end
+		if not pointerOver(control, pointerXY(input)) then
+			return
+		end
+		local scroll = scrollAncestor(control)
+		press = {
+			Input = input,
+			Start = pointerXY(input),
+			Canvas = scroll and scroll.CanvasPosition or Vector2.zero,
+			Scroll = scroll,
+		}
+	end)
+	UserInputService.InputEnded:Connect(function(input)
+		local started = press
+		if not started or started.Input ~= input then
+			return
+		end
+		press = nil
+		local pos = pointerXY(input)
+		if (pos - started.Start).Magnitude > 10 then
+			return
+		end
+		if started.Scroll and (started.Scroll.CanvasPosition - started.Canvas).Magnitude > 2 then
+			return
+		end
+		if not (control.Parent and pointerOver(control, started.Start) and pointerOver(control, pos)) then
+			return
+		end
+		callback()
+	end)
 end)
 
 function Library:CreateWindow(config)
@@ -142,6 +250,7 @@ function Library:CreateWindow(config)
 	corner(main, 12)
 	outline(main, self.Theme.AccentDark, 2)
 	window.Main = main
+	main.Visible = false
 
 	local header = new("Frame", { Name = "Header", Size = UDim2.new(1, 0, 0, 58), BackgroundColor3 = self.Theme.Sidebar, BorderSizePixel = 0 }, main)
 	corner(header, 12)
@@ -427,7 +536,7 @@ function Library:CreateWindow(config)
 				corner(frame, 8); outline(frame, Library.Theme.Outline)
 				local search = new("TextBox", { Text = "", PlaceholderText = config.Placeholder or "Search animals...", ClearTextOnFocus = false, TextSize = 12, Font = Enum.Font.GothamMedium, TextColor3 = Library.Theme.Text, PlaceholderColor3 = Library.Theme.Muted, BackgroundColor3 = Library.Theme.Background, BorderSizePixel = 0, Position = UDim2.fromOffset(8, 8), Size = UDim2.new(1, -16, 0, 30) }, frame)
 				corner(search, 6)
-				local list = new("ScrollingFrame", { Position = UDim2.fromOffset(8, 46), Size = UDim2.new(1, -16, 1, -54), BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 4, ScrollBarImageColor3 = Library.Theme.Accent, AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new() }, frame)
+				local list = new("ScrollingFrame", { Active = true, Position = UDim2.fromOffset(8, 46), Size = UDim2.new(1, -16, 1, -54), BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 4, ScrollBarImageColor3 = Library.Theme.Accent, AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new(), ScrollingDirection = Enum.ScrollingDirection.Y }, frame)
 				new("UIListLayout", { Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder }, list)
 				local function renderViewport(viewport, source)
 					if not (source and source:IsA("Model")) then return end
@@ -474,17 +583,21 @@ function Library:CreateWindow(config)
 					if not silent and config.Callback then config.Callback(item.Id, selected[item.Id]) end
 				end
 				for index, item in ipairs(items) do
-					local row = new("Frame", { Name = tostring(item.Id), Active = true, LayoutOrder = index, Size = UDim2.new(1, -5, 0, 76), BackgroundColor3 = Library.Theme.Surface, BorderSizePixel = 0 }, list)
+					local row = new("Frame", { Name = tostring(item.Id), Active = false, Selectable = false, ClipsDescendants = true, LayoutOrder = index, Size = UDim2.new(1, -5, 0, 76), BackgroundColor3 = Library.Theme.Surface, BorderSizePixel = 0 }, list)
 					corner(row, 7); outline(row, Library.Theme.Outline)
 					-- The rarity accent gets its own gutter so it never touches the pet preview.
-					local rarityStrip = new("Frame", { BackgroundColor3 = item.RarityColor or Library.Theme.Accent, BorderSizePixel = 0, Position = UDim2.fromOffset(8, 8), Size = UDim2.fromOffset(4, 60) }, row)
+					local rarityStrip = new("Frame", { Active = false, BackgroundColor3 = item.RarityColor or Library.Theme.Accent, BorderSizePixel = 0, Position = UDim2.fromOffset(8, 8), Size = UDim2.fromOffset(4, 60) }, row)
 					corner(rarityStrip, 2)
-					local viewport = new("ViewportFrame", { BackgroundColor3 = Library.Theme.Background, BorderSizePixel = 0, Position = UDim2.fromOffset(18, 8), Size = UDim2.fromOffset(60, 60), Ambient = Color3.fromRGB(235, 235, 235), LightColor = Color3.fromRGB(255, 255, 255), LightDirection = Vector3.new(-1, -1, -1) }, row)
+					local viewport = new("ViewportFrame", { Active = false, BackgroundColor3 = Library.Theme.Background, BorderSizePixel = 0, Position = UDim2.fromOffset(18, 8), Size = UDim2.fromOffset(60, 60), Ambient = Color3.fromRGB(235, 235, 235), LightColor = Color3.fromRGB(255, 255, 255), LightDirection = Vector3.new(-1, -1, -1) }, row)
 					corner(viewport, 6)
 					renderViewport(viewport, item.Model)
 					local name = text(row, tostring(item.Name or item.Id), 13, Library.Theme.Text, Enum.Font.GothamBold)
-					name.Position, name.Size = UDim2.fromOffset(92, 0), UDim2.new(1, -202, 1, 0)
+					name.Active = false
+					name.Position, name.Size = UDim2.fromOffset(92, 0), UDim2.new(1, -220, 1, 0)
 					local status = button(row, "")
+					status.Active = true
+					status.Selectable = false
+					status.ZIndex = 8
 					status.Size, status.Position = UDim2.fromOffset(100, 30), UDim2.new(1, -110, 0.5, -15)
 					selected[item.Id] = not (config.Selected and config.Selected[item.Id] == false)
 					setState(item, row, status, selected[item.Id], true)
@@ -495,8 +608,7 @@ function Library:CreateWindow(config)
 						setState(item, row, status, not selected[item.Id], false)
 						task.defer(function() toggling = false end)
 					end
-					clicked(status, toggleState)
-					clicked(row, toggleState)
+					clickedButton(status, toggleState)
 					rows[#rows + 1] = { Item = item, Row = row }
 				end
 				search:GetPropertyChangedSignal("Text"):Connect(function()
