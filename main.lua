@@ -577,9 +577,10 @@ function Library:CreateWindow(config)
 				end
 				local function setState(item, row, status, enabled, silent)
 					selected[item.Id] = enabled == true
-					row.BackgroundColor3 = selected[item.Id] and Color3.fromRGB(25, 76, 49) or Library.Theme.Background
-					status.Text = selected[item.Id] and (config.SelectedText or "Selected") or (config.BlockedText or "Blocked")
-					setButtonRestColor(status, selected[item.Id] and Library.Theme.Enabled or Library.Theme.AccentDark)
+					local on = selected[item.Id]
+					row.BackgroundColor3 = on and Color3.fromRGB(25, 76, 49) or Library.Theme.Background
+					status.Text = on and (config.SelectedText or "Selected") or (config.BlockedText or "Blocked")
+					status.BackgroundColor3 = on and Color3.fromRGB(40, 168, 91) or Color3.fromRGB(181, 29, 61)
 					if not silent and config.Callback then config.Callback(item.Id, selected[item.Id]) end
 				end
 				for index, item in ipairs(items) do
@@ -594,11 +595,15 @@ function Library:CreateWindow(config)
 					local name = text(row, tostring(item.Name or item.Id), 13, Library.Theme.Text, Enum.Font.GothamBold)
 					name.Active = false
 					name.Position, name.Size = UDim2.fromOffset(92, 0), UDim2.new(1, -220, 1, 0)
-					local status = button(row, "")
+					local status = text(row, "", 12, Library.Theme.Text, Enum.Font.GothamMedium)
 					status.Active = true
 					status.Selectable = false
 					status.ZIndex = 8
+					status.BackgroundTransparency = 0
+					status.TextXAlignment = Enum.TextXAlignment.Center
 					status.Size, status.Position = UDim2.fromOffset(100, 30), UDim2.new(1, -110, 0.5, -15)
+					corner(status, 7)
+					outline(status)
 					selected[item.Id] = not (config.Selected and config.Selected[item.Id] == false)
 					setState(item, row, status, selected[item.Id], true)
 					local toggling = false
