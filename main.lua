@@ -229,7 +229,7 @@ local function clickedButton(control, callback)
 		end
 		callback()
 	end)
-end)
+end
 
 function Library:CreateWindow(config)
 	config = config or {}
